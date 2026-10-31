@@ -94,6 +94,7 @@ contract DSCEngine is ReentrancyGuard {
     ///////////////////////////
     //   External Functions  //
     ///////////////////////////
+
     /*
      * @notice this function allows users to deposit collateral and mint DSC in a single transaction
      * @param tokenCollateralAddress The address of the token to deposit as collateral
@@ -109,6 +110,12 @@ contract DSCEngine is ReentrancyGuard {
         mintDsc(amountDscToMint);
     }
 
+    /*
+     * @notice this function allows users to burn DSC and redeem collateral in a single transaction
+     * @param tokenCollateralAddress The address of the token to redeem as collateral
+     * @param amountCollateral The amount of collateral to redeem
+     * @param amountDscToBurn The amount of DSC to burn
+     */
     function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
         external
     {
