@@ -59,6 +59,7 @@ contract DSCEngine is ReentrancyGuard {
     // Events       ///
     ///////////////////
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
+    event CollateralRedeemed(address indexed user, address indexed token, uint256 indexed amount);
 
     ///////////////////
     // Modifiers    ///
@@ -108,10 +109,13 @@ contract DSCEngine is ReentrancyGuard {
         mintDsc(amountDscToMint);
     }
 
-    function redeemCollateralForDsc() external {}
-    function redeemCollateral() external {}
+    function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
+        external
+    {
+        burnDsc(amountDscToBurn);
+        redeemCollateral(tokenCollateralAddress, amountCollateral);
+    }
 
-    function burnDsc() external {}
     function liquidate() external {}
     function getHealthFactor() external view {}
 
@@ -150,6 +154,41 @@ contract DSCEngine is ReentrancyGuard {
         if (!minted) {
             revert DSCEngine__MintFailed();
         }
+    }
+
+    /*
+    * @notice follows the "Checks-Effects-Interactions" pattern
+    * @param tokenCollateralAddress The address of the token to redeem as collateral
+    * @param amountCollateral The amount of collateral to redeem
+    * @notice You must have more collateral value than the minimum threshold to redeem collateral
+    */
+    function redeemCollateral(address tokenCollateralAddress, uint256 amountCollateral)
+        public
+        nonReentrant
+        moreThanZero(amountCollateral)
+    {
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] -= amountCollateral;
+        emit CollateralRedeemed(msg.sender, tokenCollateralAddress, amountCollateral);
+        bool success = IERC20(tokenCollateralAddress).transfer(msg.sender, amountCollateral);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
+
+    /*
+    * @notice follows the "Checks-Effects-Interactions" pattern
+    * @param amountDscToBurn The amount of DSC to burn
+    * @notice You must have more collateral value than the minimum threshold to burn DSC
+    */
+    function burnDsc(uint256 amountDscToBurn) public moreThanZero(amountDscToBurn) {
+        s_dscMinted[msg.sender] -= amountDscToBurn;
+        bool success = i_dsc.transferFrom(msg.sender, address(this), amountDscToBurn);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+        i_dsc.burn(amountDscToBurn);
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     ////////////////////////////////////////
