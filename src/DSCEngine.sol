@@ -337,4 +337,54 @@ contract DSCEngine is ReentrancyGuard {
     {
         return _getAccountInformation(user);
     }
+
+    /// @notice Returns the health factor of a given user
+    function getHealthFactorFor(address user) external view returns (uint256) {
+        return _healthFactor(user);
+    }
+
+    /// @notice Returns the address of the DSC token
+    function getDsc() external view returns (address) {
+        return address(i_dsc);
+    }
+
+    /// @notice Returns the list of allowed collateral tokens
+    function getCollateralTokens() external view returns (address[] memory) {
+        return s_collateralTokens;
+    }
+
+    /// @notice Returns the price feed used for a given collateral token
+    function getCollateralTokenPriceFeed(address token) external view returns (address) {
+        return s_priceFeeds[token];
+    }
+
+    /// @notice Returns the base precision used for fixed point math
+    function getPrecision() external pure returns (uint256) {
+        return PRECISION;
+    }
+
+    /// @notice Returns the additional precision applied to Chainlink price feeds
+    function getAdditionalFeedPrecision() external pure returns (uint256) {
+        return ADDITIONAL_FEED_PRECISION;
+    }
+
+    /// @notice Returns the liquidation threshold (in LIQUIDATION_PRECISION)
+    function getLiquidationThreshold() external pure returns (uint256) {
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    /// @notice Returns the liquidation precision
+    function getLiquidationPrecision() external pure returns (uint256) {
+        return LIQUIDATION_PRECISION;
+    }
+
+    /// @notice Returns the liquidation bonus (in LIQUIDATION_PRECISION)
+    function getLiquidationBonus() external pure returns (uint256) {
+        return LIQUIDATION_BONUS;
+    }
+
+    /// @notice Returns the minimum health factor a user must maintain
+    function getMinHealthFactor() external pure returns (uint256) {
+        return MIN_HEALTH_FACTOR;
+    }
 }
