@@ -165,7 +165,14 @@ contract DSCEngine is ReentrancyGuard {
         }
         _revertIfHealthFactorIsBroken(msg.sender);
     }
-    function getHealthFactor() external view {}
+
+    /*
+     * @notice returns the health factor of the caller
+     * @notice a health factor of type(uint256).max means the caller has no DSC minted
+     */
+    function getHealthFactor() external view returns (uint256) {
+        return _healthFactor(msg.sender);
+    }
 
     //////////////////////
     // Public Functions //
@@ -271,6 +278,12 @@ contract DSCEngine is ReentrancyGuard {
 
     function _healthFactor(address user) private view returns (uint256) {
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+
+        // A user with no debt has an infinite health factor.
+        if (totalDscMinted == 0) {
+            return type(uint256).max;
+        }
+
         uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
