@@ -57,16 +57,36 @@ in the deploy script, **nobody holds a key that can create DSC**. That is the po
 
 ```mermaid
 flowchart LR
-    LP[Liquidity provider] -- "depositCollateral / redeemCollateral" --> E[DSCEngine]
-    BR[Borrower] -- "mintDsc / burnDsc" --> E
-    LQ[Liquidator] -- "liquidate" --> E
+    subgraph Actors
+        LP[Liquidity Provider]
+        BR[Borrower]
+        LQ[Liquidator]
+    end
 
-    E -- "mint / burn (onlyOwner)" --> D[(DecentralizedStableCoin)]
-    E -- "transferFrom / transfer" --> W[WETH]
-    E -- "transferFrom / transfer" --> B[WBTC]
-    E -- "staleCheckLatestRoundData()" -.-> O[OracleLib]
-    O -.-> F1[WETH/USD feed]
-    O -.-> F2[WBTC/USD feed]
+    subgraph Core
+        E[DSCEngine]
+        D[(DecentralizedStableCoin)]
+    end
+
+    subgraph Tokens & Oracles
+        W[WETH]
+        B[WBTC]
+        O[OracleLib]
+        F1[WETH/USD Feed]
+        F2[WBTC/USD Feed]
+    end
+
+    LP -->|"depositCollateral / redeemCollateral"| E
+    BR -->|"mintDsc / burnDsc"| E
+    LQ -->|"liquidate"| E
+
+    E -->|"mint / burn (onlyOwner)"| D
+    E -->|"transferFrom / transfer"| W
+    E -->|"transferFrom / transfer"| B
+    
+    E -.->|"staleCheckLatestRoundData()"| O
+    O -.-> F1
+    O -.-> F2
 ```
 
 Two contracts and one library, no proxy, no factory, no registry:
@@ -263,9 +283,48 @@ isn't there — the invariant suite tests all four continuously.
 
 ---
 
+## Frontend
+
+A Next.js app under `frontend/` talks to the engine on **Anvil and Sepolia** — the same code paths,
+the same ABIs, no mock fallbacks.
+
+```bash
+cd frontend
+pnpm install
+cp .env.example .env.local          # fill in RPCs if you want non-default ones
+pnpm gen:abis                       # needs `forge build` first
+pnpm sync:deployments 11155111      # reads the broadcast artifact; or set env vars
+pnpm dev
+```
+
+What it does:
+
+- **Dashboard** — TVL, DSC supply, collateral ratio, live markets, prices and the risk parameters
+  read straight from the engine, plus an honest "no contract at this address" row for Sepolia's
+  codeless WBTC market.
+- **Position** — per-token collateral, debt, health factor gauge, borrowing power, max withdraw and
+  the price drop that would liquidate you. Deposit, withdraw, mint and repay with the full
+  simulate → sign → wait → confirm flow; exact-amount approvals only, never infinite.
+- **Liquidate** — scans the deployment's `CollateralDeposited` events to list every account that has
+  debt, shows the ones below 1.00, and previews collateral-out, bonus and the resulting health
+  factor before sending.
+- **Activity** — reconstructs your history from engine and DSC logs, inferring mints, repays and
+  liquidations from transfers because the engine emits no such events.
+
+Stack: Next 16, React 19, wagmi 3 + viem 2, TanStack Query, Tailwind 4, TypeScript strict. No
+RainbowKit/WalletConnect — injected wallet only. All on-chain amounts stay `bigint`; no `any`.
+Unit tests for the math, formatting and activity classification live next to the source
+(`pnpm test`).
+
+After a redeploy, `pnpm sync:deployments` rewrites `src/config/deployments.generated.json`. The
+addresses are public and committed so the app builds without Foundry.
+
+---
+
 ## Repository map
 
 ```
+frontend/                     Next.js app: dashboard, position, liquidate, activity
 src/
   DSCEngine.sol                 collateral, debt, health factor, liquidation
   DecentralizedStableCoin.sol   ERC20 + burnable + owned by the engine
@@ -290,7 +349,7 @@ Reading order for a newcomer: `src/DSCEngine.sol` → `_healthFactor` → `liqui
 
 | Contract | Deployed size | Unit tests |
 |---|---|---|
-| `DSCEngine` | 7,206 B | 60 |
+| `DSCEngine` | 7,206 B | 68 |
 | `DecentralizedStableCoin` | 5,029 B | 11 |
 | `OracleLib` | 1,243 B | — (covered through `DSCEngine`) |
 
