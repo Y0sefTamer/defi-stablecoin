@@ -807,4 +807,96 @@ contract DSCEngineTest is Test {
         dscEngine.liquidate(address(weth), USER, 10_001 ether);
         vm.stopPrank();
     }
+
+    //////////////////////////////
+    // Collateral balance reads //
+    //////////////////////////////
+
+    function testGetCollateralBalanceOfIsZeroForFreshAccount() public view {
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(weth)), 0);
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(wbtc)), 0);
+    }
+
+    function testGetCollateralBalanceOfTracksDepositsPerToken() public {
+        weth.mint(USER, 1 ether);
+
+        _deposit(USER, address(weth), COLLATERAL_AMOUNT);
+        _deposit(USER, address(weth), 1 ether);
+        _deposit(USER, address(wbtc), 2 ether);
+
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(weth)), COLLATERAL_AMOUNT + 1 ether);
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(wbtc)), 2 ether);
+    }
+
+    function testGetCollateralBalanceOfTracksRedeems() public {
+        _deposit(USER, address(weth), COLLATERAL_AMOUNT);
+
+        vm.prank(USER);
+        dscEngine.redeemCollateral(address(weth), 4 ether);
+
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(weth)), COLLATERAL_AMOUNT - 4 ether);
+    }
+
+    function testGetCollateralBalanceOfIsPerUser() public {
+        _deposit(USER, address(weth), COLLATERAL_AMOUNT);
+        _deposit(LIQUIDATOR, address(weth), 3 ether);
+
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(weth)), COLLATERAL_AMOUNT);
+        assertEq(dscEngine.getCollateralBalanceOf(LIQUIDATOR, address(weth)), 3 ether);
+    }
+
+    function testGetCollateralBalanceOfIsZeroForUnsupportedToken() public view {
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(0xdead)), 0);
+    }
+
+    function testGetCollateralBalancesAlignsWithTokenList() public {
+        _deposit(USER, address(weth), COLLATERAL_AMOUNT);
+        _deposit(USER, address(wbtc), 3 ether);
+
+        address[] memory tokens = dscEngine.getCollateralTokens();
+        uint256[] memory balances = dscEngine.getCollateralBalances(USER);
+
+        assertEq(tokens.length, 2);
+        assertEq(balances.length, tokens.length);
+        assertEq(balances[0], COLLATERAL_AMOUNT); // weth
+        assertEq(balances[1], 3 ether); // wbtc
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            assertEq(balances[i], dscEngine.getCollateralBalanceOf(USER, tokens[i]));
+        }
+    }
+
+    function testGetCollateralBalancesReturnsZerosForFreshAccount() public view {
+        uint256[] memory balances = dscEngine.getCollateralBalances(USER);
+
+        assertEq(balances.length, dscEngine.getCollateralTokens().length);
+        for (uint256 i = 0; i < balances.length; i++) {
+            assertEq(balances[i], 0);
+        }
+    }
+
+    function testGetCollateralBalancesReflectsLiquidationSeizure() public {
+        _setUpUserForLiquidation();
+        _setUpLiquidator(LIQUIDATOR_COLLATERAL_AMOUNT, 10_000 ether);
+
+        wethUsdPriceFeed.updateAnswer(1500e8);
+
+        uint256 debtToCover = 1_000 ether;
+        uint256 collateralFromDebt = dscEngine.getTokenAmountFromUsd(address(weth), debtToCover);
+        uint256 seizedCollateral = collateralFromDebt + (collateralFromDebt * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
+
+        vm.startPrank(LIQUIDATOR);
+        dsc.approve(address(dscEngine), debtToCover);
+        dscEngine.liquidate(address(weth), USER, debtToCover);
+        vm.stopPrank();
+
+        (uint256 userDebt, uint256 userCollateralValue) = dscEngine.getAccountInformation(USER);
+
+        assertEq(userDebt, 10_000 ether - debtToCover);
+        assertEq(dscEngine.getCollateralBalanceOf(USER, address(weth)), COLLATERAL_AMOUNT - seizedCollateral);
+        assertEq(dscEngine.getUsdValue(address(weth), COLLATERAL_AMOUNT - seizedCollateral), userCollateralValue);
+        // The seized collateral goes to the liquidator's wallet, not to its engine balance.
+        assertEq(dscEngine.getCollateralBalanceOf(LIQUIDATOR, address(weth)), LIQUIDATOR_COLLATERAL_AMOUNT);
+        assertGt(weth.balanceOf(LIQUIDATOR), 0);
+    }
 }

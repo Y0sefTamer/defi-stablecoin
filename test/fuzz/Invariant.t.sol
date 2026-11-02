@@ -166,6 +166,21 @@ contract InvariantTest is DSCSystem {
                 "health factor formula drift"
             );
 
+            uint256[] memory perTokenBalances = engine.getCollateralBalances(actor);
+            assertEq(perTokenBalances.length, tokens.length, "collateral balance array length drift");
+            for (uint256 j = 0; j < tokens.length; j++) {
+                assertEq(
+                    perTokenBalances[j],
+                    handler.ghost_actorDeposited(actor, tokens[j]),
+                    "engine collateral balance != recorded deposits"
+                );
+                assertEq(
+                    engine.getCollateralBalanceOf(actor, tokens[j]),
+                    perTokenBalances[j],
+                    "getCollateralBalanceOf != getCollateralBalances"
+                );
+            }
+
             if (debt > 0) assertGt(collateralValue, 0, "debt without collateral");
         }
     }
@@ -412,6 +427,26 @@ contract DSCEngineGetterTest is DSCSystem {
         assertEq(engine.getCollateralTokenPriceFeed(address(weth)), address(wethFeed));
         assertEq(engine.getCollateralTokenPriceFeed(address(wbtc)), address(wbtcFeed));
         assertEq(engine.getCollateralTokenPriceFeed(address(0xdead)), address(0));
+    }
+
+    function test_getCollateralBalanceGettersTrackDeposits() public {
+        address user = address(0xA11CE);
+        _openPosition(user, address(weth), 10 ether, DEBT_FOR_HEALTH_FACTOR_TEST);
+
+        address[] memory tokens = engine.getCollateralTokens();
+        uint256[] memory balances = engine.getCollateralBalances(user);
+
+        assertEq(balances.length, tokens.length);
+        assertEq(balances[0], 10 ether); // weth
+        assertEq(balances[1], 0); // wbtc
+        assertEq(engine.getCollateralBalanceOf(user, address(weth)), 10 ether);
+        assertEq(engine.getCollateralBalanceOf(user, address(wbtc)), 0);
+        assertEq(engine.getCollateralBalanceOf(address(0xBEEF), address(weth)), 0);
+
+        vm.prank(user);
+        engine.redeemCollateral(address(weth), 4 ether);
+
+        assertEq(engine.getCollateralBalanceOf(user, address(weth)), 6 ether);
     }
 
     function test_getHealthFactorForMatchesCallerView() public {
