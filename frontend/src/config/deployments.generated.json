@@ -1,0 +1,11 @@
+{
+  "11155111": {
+    "chainId": 11155111,
+    "engine": "0x55e168a7b1d72affeceed471bf2280df16476bd3",
+    "dsc": "0x2cbfe847205380d4de1b32791e3732bdd7b80d7b",
+    "oracleLib": "0xAe1abdD6E9e685BAE0840698729840619FB55558",
+    "deploymentBlock": 12046333,
+    "deployer": "0xc9fa01744bfbb1d9d7e1121a6ad4b5501d0eb83a",
+    "updatedAt": "2026-11-02T06:56:31.644Z"
+  }
+}

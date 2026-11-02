@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+next-env.d.ts.timestamp-*
+
+# local env (public values only, but still local)
+.env.local
+.env*.local
+
+# generated deployment addresses are committed on purpose: they are public and
+# the app builds without running Foundry. Re-run `pnpm sync:deployments` after
+# a redeploy; the diff shows the address change.
+
+# misc
+*.tsbuildinfo
+.DS_Store
