@@ -364,6 +364,22 @@ contract DSCEngine is ReentrancyGuard {
         return s_priceFeeds[token];
     }
 
+    /// @notice Returns how much of `token` a user has deposited as collateral
+    function getCollateralBalanceOf(address user, address token) external view returns (uint256) {
+        return s_collateralDeposited[user][token];
+    }
+
+    /// @notice Returns a user's collateral balance for every supported token
+    /// @return balances balances[i] belongs to getCollateralTokens()[i]
+    function getCollateralBalances(address user) external view returns (uint256[] memory balances) {
+        uint256 tokenCount = s_collateralTokens.length;
+        balances = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            balances[i] = s_collateralDeposited[user][s_collateralTokens[i]];
+        }
+    }
+
     /// @notice Returns the base precision used for fixed point math
     function getPrecision() external pure returns (uint256) {
         return PRECISION;
